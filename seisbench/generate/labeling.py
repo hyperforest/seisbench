@@ -212,10 +212,11 @@ class ProbabilisticLabeller(PickLabeller):
     :type sigma: int, optional
     """
 
-    def __init__(self, shape="gaussian", sigma=10, **kwargs):
+    def __init__(self, shape="gaussian", sigma=10, use_detection=False, **kwargs):
         self.label_method = "probabilistic"
         self.sigma = sigma
         self.shape = shape
+        self.use_detection = use_detection
         self._labelshape_fn_mapper = {
             "gaussian": gaussian_pick,
             "triangle": triangle_pick,
@@ -307,6 +308,17 @@ class ProbabilisticLabeller(PickLabeller):
             y = self._swap_dimension_order(
                 y, current_dim="NCW", expected_dim=config["dimension_order"]
             )
+
+        if (self.use_detection):
+            if self.ndim == 2:
+                p_phases = {k:v for k,v in self.label_columns.items() if v=='P'}
+                s_phases = {k:v for k,v in self.label_columns.items() if v=='S'}
+                dl = DetectionLabeller(p_phases=p_phases, s_phases=s_phases)
+                dl.ndim = self.ndim
+                self.label_type = 'multilabel'
+            
+                y[2, :] = dl.label(X, metadata)[0]
+                y = y[[2,0,1], :]
 
         return y
 
@@ -478,7 +490,7 @@ class DetectionLabeller(SupervisedLabeller):
             factor = 0
         else:
             factor = self.factor
-
+    
         if self.ndim == 2:
             y = np.zeros((1, X.shape[width_dim]))
             p_arrivals = [
